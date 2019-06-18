@@ -1,0 +1,10 @@
+hosts:
+  - hostname: "gateway"
+    addr: "192.168.1.1"
+    username: "admin"
+    password: "admin"
+    ssh: true
+    #webhook: slack webhook url
+    cmds:
+      - "show configuration | no-more"
+      - "quit"
