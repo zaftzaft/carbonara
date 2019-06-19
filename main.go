@@ -34,6 +34,54 @@ func UpdateLog(filepath string, data string) error {
 	return nil
 }
 
+func FetchHost(host Host) int {
+	if host.SSH {
+		b, err := SSHClient(&host)
+		if err != nil {
+			fmt.Println(host.Hostname, err)
+			return 1
+		}
+
+		result := b.String()
+
+		basedir := filepath.Join("carbonara-log", host.Hostname)
+		nowf := time.Now().Format("20060102030405")
+
+		os.MkdirAll(basedir, 0755)
+
+		fmt.Println(host.Hostname, "done", nowf)
+
+		if _, err := os.Stat(filepath.Join(basedir, "_")); err != nil {
+			// file not exists
+			UpdateLog(filepath.Join(basedir, host.Hostname+"-"+nowf+".txt"), result)
+			UpdateLog(filepath.Join(basedir, "_"), result)
+		} else {
+			final, _ := ioutil.ReadFile(filepath.Join(basedir, "_"))
+			diff := difflib.UnifiedDiff{
+				A:        difflib.SplitLines(string(final)),
+				B:        difflib.SplitLines(result),
+				FromFile: host.Hostname,
+				ToFile:   nowf,
+				Context:  3,
+			}
+
+			text, _ := difflib.GetUnifiedDiffString(diff)
+
+			if len(text) > 0 {
+				if len(host.WebhookUrl) > 0 {
+					SendWebhook(host.WebhookUrl, "```"+text+"```")
+				}
+
+				UpdateLog(filepath.Join(basedir, host.Hostname+"-"+nowf+".txt"), result)
+				UpdateLog(filepath.Join(basedir, "_"), result)
+			}
+
+		}
+
+	}
+	return 0
+}
+
 func Run() int {
 	cbuf, err := ioutil.ReadFile(*configfile)
 	if err != nil {
@@ -48,50 +96,25 @@ func Run() int {
 		return 1
 	}
 
+	ch := make(chan bool, len(rc.Hosts))
+	done := 0
+
 	for _, host := range rc.Hosts {
-		if host.SSH {
-			b, err := SSHClient(&host)
-			if err != nil {
-				fmt.Println(err)
-				return 1
+		host := host
+		go func() {
+			FetchHost(host)
+			ch <- true
+		}()
+	}
+
+	for {
+		select {
+		case <-ch:
+			done++
+			if done == len(rc.Hosts) {
+				return 0
 			}
-
-			result := b.String()
-
-			basedir := filepath.Join("carbonara-log", host.Hostname)
-			nowf := time.Now().Format("20060102030405")
-
-			os.MkdirAll(basedir, 0755)
-
-			if _, err := os.Stat(filepath.Join(basedir, "_")); err != nil {
-				// file not exists
-				UpdateLog(filepath.Join(basedir, host.Hostname+"-"+nowf+".txt"), result)
-				UpdateLog(filepath.Join(basedir, "_"), result)
-			} else {
-				final, _ := ioutil.ReadFile(filepath.Join(basedir, "_"))
-				diff := difflib.UnifiedDiff{
-					A:        difflib.SplitLines(string(final)),
-					B:        difflib.SplitLines(result),
-					FromFile: host.Hostname,
-					ToFile:   nowf,
-					Context:  3,
-				}
-
-				text, _ := difflib.GetUnifiedDiffString(diff)
-
-				if len(text) > 0 {
-					if len(host.WebhookUrl) > 0 {
-						SendWebhook(host.WebhookUrl, text)
-					}
-
-					UpdateLog(filepath.Join(basedir, host.Hostname+"-"+nowf+".txt"), result)
-					UpdateLog(filepath.Join(basedir, "_"), result)
-				}
-
-			}
-
 		}
-
 	}
 
 	return 0
