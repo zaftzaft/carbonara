@@ -18,6 +18,15 @@ func SSHClient(h *Host) (bytes.Buffer, error) {
 		Config: config,
 		User:   h.Username,
 		Auth: []ssh.AuthMethod{
+			ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) {
+				var ans []string
+				for _, q := range questions {
+					if q == "Password: " {
+						ans = append(ans, h.Password)
+					}
+				}
+				return ans, nil
+			}),
 			ssh.Password(h.Password),
 		},
 		Timeout: time.Second * 10,
