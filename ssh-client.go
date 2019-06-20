@@ -41,15 +41,15 @@ func SSHClient(h *Host) (bytes.Buffer, error) {
 		return b, fmt.Errorf("Failed to dial: %s", err)
 	}
 
-	session, err := client.NewSession()
-	if err != nil {
-		return b, fmt.Errorf("Failed to create session: %s", err)
-	}
-	defer session.Close()
-
-	session.Stdout = &b
-
 	for _, cmd := range h.Commands {
+		session, err := client.NewSession()
+		if err != nil {
+			return b, fmt.Errorf("Failed to create session: %s", err)
+		}
+		defer session.Close()
+
+		session.Stdout = &b
+
 		if err := session.Run(cmd); err != nil {
 			return b, fmt.Errorf("Failed to run: %s", err.Error())
 		}
