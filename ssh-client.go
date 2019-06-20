@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	//"os"
+	"io/ioutil"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 )
 
-func SSHClient(h *Host) (bytes.Buffer, error) {
-	var b bytes.Buffer
+func SSHClient(h *Host) (string, error) {
+	var b string
 
 	config := ssh.Config{}
 	config.SetDefaults()
@@ -54,6 +55,11 @@ func SSHClient(h *Host) (bytes.Buffer, error) {
 			return b, fmt.Errorf("Failed to get stdin: %s", err)
 		}
 
+		out, err := session.StdoutPipe()
+		if err != nil {
+			return b, fmt.Errorf("Failed to get stdout: %s", err)
+		}
+
 		modes := ssh.TerminalModes{
 			ssh.ECHO:          0,     // disable echoing
 			ssh.TTY_OP_ISPEED: 14400, // input speed = 14.4kbaud
@@ -70,17 +76,42 @@ func SSHClient(h *Host) (bytes.Buffer, error) {
 
 		//session.Stdout = os.Stdout
 		//session.Stderr = os.Stderr
-		session.Stdout = &b
 
 		wait := h.ShellWait
 		if h.ShellWait <= 0 {
 			wait = 1
 		}
 
+		//session.Stdout = os.Stdout
+		for _, cmd := range h.CommandsPre {
+			time.Sleep(time.Duration(wait) * time.Second)
+			fmt.Fprintln(in, cmd)
+		}
+
 		for _, cmd := range h.Commands {
 			time.Sleep(time.Duration(wait) * time.Second)
-			fmt.Fprintln(in, cmd+"\n")
+			//session.Stdout = &b
+			fmt.Fprintln(in, cmd)
 		}
+
+		//buf, err := ioutil.ReadAll(out)
+		//if err != nil {
+		//	return b, err
+		//}
+		//fmt.Println(string(buf))
+
+		for _, cmd := range h.CommandsPost {
+			time.Sleep(time.Duration(wait) * time.Second)
+			//session.Stdout = os.Stdout
+			fmt.Fprintln(in, cmd)
+		}
+
+		buf, err := ioutil.ReadAll(out)
+		if err != nil {
+			return b, err
+		}
+
+		b = string(buf)
 
 		//fmt.Fprint(in, "enable\n")
 		//fmt.Fprint(in, "")
@@ -88,6 +119,7 @@ func SSHClient(h *Host) (bytes.Buffer, error) {
 		session.Wait()
 
 	} else {
+		var bu bytes.Buffer
 		for _, cmd := range h.Commands {
 			session, err := client.NewSession()
 			if err != nil {
@@ -95,12 +127,13 @@ func SSHClient(h *Host) (bytes.Buffer, error) {
 			}
 			defer session.Close()
 
-			session.Stdout = &b
+			session.Stdout = &bu
 
 			if err := session.Run(cmd); err != nil {
 				return b, fmt.Errorf("Failed to run: %s", err.Error())
 			}
 		}
+		b = bu.String()
 	}
 	//if err := session.Run("/usr/bin/whoami"); err != nil {
 

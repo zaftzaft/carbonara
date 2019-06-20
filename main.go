@@ -42,14 +42,15 @@ func FetchHost(host Host) int {
 			return 1
 		}
 
-		result := b.String()
+		//result := b.String()
+		result := b
 
 		basedir := filepath.Join("carbonara-log", host.Hostname)
 		nowf := time.Now().Format("20060102030405")
 
 		os.MkdirAll(basedir, 0755)
 
-		fmt.Println(host.Hostname, "done", nowf)
+		fmt.Println(host.Hostname, "done", nowf, len(result), "words")
 
 		if _, err := os.Stat(filepath.Join(basedir, "_")); err != nil {
 			// file not exists
