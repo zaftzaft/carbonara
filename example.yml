@@ -7,4 +7,30 @@ hosts:
     #webhook: slack webhook url
     cmds:
       - "show configuration | no-more"
-      - "quit"
+
+  # enable password
+  - hostname: "backbone-router"
+    addr: "192.168.99.1"
+    username: "admin"
+    password: "admin"
+    ssh: true
+    shell: true
+    #webhook: slack webhook url
+    shell_wait: 3
+    cmds:
+      - "enable"
+      - "ENABLE-PASSWORD"
+      - "show run | no-more"
+      - "exit"
+
+
+  - hostname: "vyos"
+    addr: "192.168.1.2"
+    username: "admin"
+    password: "admin"
+    ssh: true
+    shell: true
+    #webhook: slack webhook url
+    cmds:
+      - "show conf | no-more"
+      - "exit"

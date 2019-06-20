@@ -9,6 +9,8 @@ type Host struct {
 	Address    string   `yaml:"addr"`
 	Username   string   `yaml:"username"`
 	Password   string   `yaml:"password"`
+	Shell      bool     `yaml:"shell"`
+	ShellWait  int      `yaml:"shell_wait"`
 	Commands   []string `yaml:"cmds"`
 	SSH        bool     `yaml:"ssh"`
 	Telnet     bool     `yaml:"telnet"`
