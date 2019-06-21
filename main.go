@@ -50,7 +50,7 @@ func FetchHost(host Host) int {
 
 		os.MkdirAll(basedir, 0755)
 
-		fmt.Println(host.Hostname, "done", nowf, len(result), "words")
+		fmt.Println(host.Hostname, "done", nowf, len(result), "chars")
 
 		if _, err := os.Stat(filepath.Join(basedir, "_")); err != nil {
 			// file not exists

@@ -3,15 +3,30 @@ package main
 import (
 	"bytes"
 	"fmt"
-	//"os"
+	"io"
 	"io/ioutil"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 )
 
+type CtrlBuffer struct {
+	Ctrl     bool
+	Positive io.Writer
+	Negative io.Writer
+}
+
+func (c *CtrlBuffer) Write(p []byte) (n int, err error) {
+	if c.Ctrl {
+		return c.Positive.Write(p)
+	}
+	return c.Negative.Write(p)
+}
+
 func SSHClient(h *Host) (string, error) {
 	var b string
+	w := &bytes.Buffer{}
+	cb := &CtrlBuffer{}
 
 	config := ssh.Config{}
 	config.SetDefaults()
@@ -55,10 +70,10 @@ func SSHClient(h *Host) (string, error) {
 			return b, fmt.Errorf("Failed to get stdin: %s", err)
 		}
 
-		out, err := session.StdoutPipe()
-		if err != nil {
-			return b, fmt.Errorf("Failed to get stdout: %s", err)
-		}
+		//out, err := session.StdoutPipe()
+		//if err != nil {
+		//	return b, fmt.Errorf("Failed to get stdout: %s", err)
+		//}
 
 		modes := ssh.TerminalModes{
 			ssh.ECHO:          0,     // disable echoing
@@ -74,50 +89,55 @@ func SSHClient(h *Host) (string, error) {
 			return b, fmt.Errorf("Failed to start shell: %s", err)
 		}
 
-		//session.Stdout = os.Stdout
-		//session.Stderr = os.Stderr
-
 		wait := h.ShellWait
 		if h.ShellWait <= 0 {
 			wait = 1
 		}
 
-		//session.Stdout = os.Stdout
-		for _, cmd := range h.CommandsPre {
-			time.Sleep(time.Duration(wait) * time.Second)
-			fmt.Fprintln(in, cmd)
+		if h.PreBeforeWait <= 0 {
+			h.PreBeforeWait = 3
 		}
+
+		if h.PreAfterWait <= 0 {
+			h.PreAfterWait = 1
+		}
+
+		if h.PostBeforeWait <= 0 {
+			h.PostBeforeWait = 1
+		}
+
+		//cb.Positive = os.Stdout
+		cb.Positive = w
+		cb.Negative = ioutil.Discard
+		session.Stdout = cb
+
+		cb.Ctrl = false
+
+		time.Sleep(time.Duration(h.PreBeforeWait) * time.Second)
+		for _, cmd := range h.CommandsPre {
+			fmt.Fprintln(in, cmd)
+			time.Sleep(time.Duration(wait) * time.Second)
+		}
+
+		time.Sleep(time.Duration(h.PreAfterWait) * time.Second)
+		cb.Ctrl = true
 
 		for _, cmd := range h.Commands {
-			time.Sleep(time.Duration(wait) * time.Second)
-			//session.Stdout = &b
 			fmt.Fprintln(in, cmd)
+			time.Sleep(time.Duration(wait) * time.Second)
 		}
 
-		//buf, err := ioutil.ReadAll(out)
-		//if err != nil {
-		//	return b, err
-		//}
-		//fmt.Println(string(buf))
+		time.Sleep(time.Duration(h.PostBeforeWait) * time.Second)
+		cb.Ctrl = false
 
 		for _, cmd := range h.CommandsPost {
-			time.Sleep(time.Duration(wait) * time.Second)
-			//session.Stdout = os.Stdout
 			fmt.Fprintln(in, cmd)
+			time.Sleep(time.Duration(wait) * time.Second)
 		}
 
-		buf, err := ioutil.ReadAll(out)
-		if err != nil {
-			return b, err
-		}
-
-		b = string(buf)
-
-		//fmt.Fprint(in, "enable\n")
-		//fmt.Fprint(in, "")
+		b = w.String()
 
 		session.Wait()
-
 	} else {
 		var bu bytes.Buffer
 		for _, cmd := range h.Commands {
@@ -135,7 +155,6 @@ func SSHClient(h *Host) (string, error) {
 		}
 		b = bu.String()
 	}
-	//if err := session.Run("/usr/bin/whoami"); err != nil {
 
 	return b, nil
 }
