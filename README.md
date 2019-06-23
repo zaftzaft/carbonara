@@ -18,7 +18,7 @@ hosts:
 ```
 
 ## enable password
-```
+```yaml
 hosts:
   - hostname: "backbone-router"
     addr: "192.168.99.1"

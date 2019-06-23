@@ -16,7 +16,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const Version = "0.0.1"
+const Version = "0.0.2"
 
 var (
 	configfile = kingpin.Arg("configfile", "config file path").Required().String()
