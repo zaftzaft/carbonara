@@ -18,8 +18,9 @@ type Host struct {
 	PreAfterWait   int      `yaml:"pre_after_wait"`
 	PostBeforeWait int      `yaml:"post_before_wait"`
 	SSH            bool     `yaml:"ssh"`
-	Telnet         bool     `yaml:"telnet"`
 	SSHPortNum     uint16   `yaml:"ssh_port"`
+	Telnet         bool     `yaml:"telnet"`
+	TelnetPortNum  uint16   `yaml:"telnet_port"`
 	WebhookUrl     string   `yaml:"webhook"`
 }
 
@@ -29,4 +30,12 @@ func (h *Host) SSHPort() string {
 	}
 
 	return "22"
+}
+
+func (h *Host) TelnetPort() string {
+	if h.TelnetPortNum > 0 {
+		return strconv.Itoa(int(h.TelnetPortNum))
+	}
+
+	return "telnet"
 }

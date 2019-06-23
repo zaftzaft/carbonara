@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
+
+	"carbonara/telnet"
 
 	"github.com/pmezard/go-difflib/difflib"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -34,6 +38,44 @@ func UpdateLog(filepath string, data string) error {
 	return nil
 }
 
+func CheckResult(host Host, result string) error {
+	basedir := filepath.Join("carbonara-log", host.Hostname)
+	nowf := time.Now().Format("20060102030405")
+
+	os.MkdirAll(basedir, 0755)
+
+	fmt.Println(host.Hostname, "done", nowf, len(result), "chars")
+
+	if _, err := os.Stat(filepath.Join(basedir, "_")); err != nil {
+		// file not exists
+		UpdateLog(filepath.Join(basedir, host.Hostname+"-"+nowf+".txt"), result)
+		UpdateLog(filepath.Join(basedir, "_"), result)
+	} else {
+		final, _ := ioutil.ReadFile(filepath.Join(basedir, "_"))
+		diff := difflib.UnifiedDiff{
+			A:        difflib.SplitLines(string(final)),
+			B:        difflib.SplitLines(result),
+			FromFile: host.Hostname,
+			ToFile:   nowf,
+			Context:  3,
+		}
+
+		text, _ := difflib.GetUnifiedDiffString(diff)
+
+		if len(text) > 0 {
+			if len(host.WebhookUrl) > 0 {
+				SendWebhook(host.WebhookUrl, "```"+text+"```")
+			}
+
+			UpdateLog(filepath.Join(basedir, host.Hostname+"-"+nowf+".txt"), result)
+			UpdateLog(filepath.Join(basedir, "_"), result)
+		}
+
+	}
+
+	return nil
+}
+
 func FetchHost(host Host) int {
 	if host.SSH {
 		b, err := SSHClient(&host)
@@ -42,44 +84,29 @@ func FetchHost(host Host) int {
 			return 1
 		}
 
-		//result := b.String()
-		result := b
+		CheckResult(host, b)
+	} else if host.Telnet {
+		w := &bytes.Buffer{}
+		cb := &CtrlBuffer{}
+		cb.Positive = w
+		cb.Negative = ioutil.Discard
 
-		basedir := filepath.Join("carbonara-log", host.Hostname)
-		nowf := time.Now().Format("20060102030405")
-
-		os.MkdirAll(basedir, 0755)
-
-		fmt.Println(host.Hostname, "done", nowf, len(result), "chars")
-
-		if _, err := os.Stat(filepath.Join(basedir, "_")); err != nil {
-			// file not exists
-			UpdateLog(filepath.Join(basedir, host.Hostname+"-"+nowf+".txt"), result)
-			UpdateLog(filepath.Join(basedir, "_"), result)
-		} else {
-			final, _ := ioutil.ReadFile(filepath.Join(basedir, "_"))
-			diff := difflib.UnifiedDiff{
-				A:        difflib.SplitLines(string(final)),
-				B:        difflib.SplitLines(result),
-				FromFile: host.Hostname,
-				ToFile:   nowf,
-				Context:  3,
-			}
-
-			text, _ := difflib.GetUnifiedDiffString(diff)
-
-			if len(text) > 0 {
-				if len(host.WebhookUrl) > 0 {
-					SendWebhook(host.WebhookUrl, "```"+text+"```")
-				}
-
-				UpdateLog(filepath.Join(basedir, host.Hostname+"-"+nowf+".txt"), result)
-				UpdateLog(filepath.Join(basedir, "_"), result)
-			}
-
+		conn, exit, err := telnet.Dial(host.Address+":"+host.TelnetPort(), cb)
+		if err != nil {
+			fmt.Println(host.Hostname, err)
+			return 1
 		}
 
+		ShellModeRun(&host, cb, conn)
+
+		if err := <-exit; err != nil && err != io.EOF {
+			fmt.Println(host.Hostname, err)
+			return 1
+		}
+
+		CheckResult(host, w.String())
 	}
+
 	return 0
 }
 

@@ -10,19 +10,6 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type CtrlBuffer struct {
-	Ctrl     bool
-	Positive io.Writer
-	Negative io.Writer
-}
-
-func (c *CtrlBuffer) Write(p []byte) (n int, err error) {
-	if c.Ctrl {
-		return c.Positive.Write(p)
-	}
-	return c.Negative.Write(p)
-}
-
 func SSHClient(h *Host) (string, error) {
 	var b string
 	w := &bytes.Buffer{}
@@ -89,51 +76,12 @@ func SSHClient(h *Host) (string, error) {
 			return b, fmt.Errorf("Failed to start shell: %s", err)
 		}
 
-		wait := h.ShellWait
-		if h.ShellWait <= 0 {
-			wait = 1
-		}
-
-		if h.PreBeforeWait <= 0 {
-			h.PreBeforeWait = 3
-		}
-
-		if h.PreAfterWait <= 0 {
-			h.PreAfterWait = 1
-		}
-
-		if h.PostBeforeWait <= 0 {
-			h.PostBeforeWait = 1
-		}
-
 		//cb.Positive = os.Stdout
 		cb.Positive = w
 		cb.Negative = ioutil.Discard
 		session.Stdout = cb
 
-		cb.Ctrl = false
-
-		time.Sleep(time.Duration(h.PreBeforeWait) * time.Second)
-		for _, cmd := range h.CommandsPre {
-			fmt.Fprintln(in, cmd)
-			time.Sleep(time.Duration(wait) * time.Second)
-		}
-
-		time.Sleep(time.Duration(h.PreAfterWait) * time.Second)
-		cb.Ctrl = true
-
-		for _, cmd := range h.Commands {
-			fmt.Fprintln(in, cmd)
-			time.Sleep(time.Duration(wait) * time.Second)
-		}
-
-		time.Sleep(time.Duration(h.PostBeforeWait) * time.Second)
-		cb.Ctrl = false
-
-		for _, cmd := range h.CommandsPost {
-			fmt.Fprintln(in, cmd)
-			time.Sleep(time.Duration(wait) * time.Second)
-		}
+		ShellModeRun(h, cb, in)
 
 		b = w.String()
 
@@ -157,4 +105,47 @@ func SSHClient(h *Host) (string, error) {
 	}
 
 	return b, nil
+}
+
+func ShellModeRun(h *Host, cb *CtrlBuffer, in io.Writer) {
+	wait := h.ShellWait
+	if h.ShellWait <= 0 {
+		wait = 1
+	}
+
+	if h.PreBeforeWait <= 0 {
+		h.PreBeforeWait = 3
+	}
+
+	if h.PreAfterWait <= 0 {
+		h.PreAfterWait = 1
+	}
+
+	if h.PostBeforeWait <= 0 {
+		h.PostBeforeWait = 1
+	}
+
+	cb.Ctrl = false
+
+	time.Sleep(time.Duration(h.PreBeforeWait) * time.Second)
+	for _, cmd := range h.CommandsPre {
+		fmt.Fprintln(in, cmd)
+		time.Sleep(time.Duration(wait) * time.Second)
+	}
+
+	time.Sleep(time.Duration(h.PreAfterWait) * time.Second)
+	cb.Ctrl = true
+
+	for _, cmd := range h.Commands {
+		fmt.Fprintln(in, cmd)
+		time.Sleep(time.Duration(wait) * time.Second)
+	}
+
+	time.Sleep(time.Duration(h.PostBeforeWait) * time.Second)
+	cb.Ctrl = false
+
+	for _, cmd := range h.CommandsPost {
+		fmt.Fprintln(in, cmd)
+		time.Sleep(time.Duration(wait) * time.Second)
+	}
 }
