@@ -43,10 +43,10 @@ func Dial(host string, w io.Writer) (conn net.Conn, exit chan error, err error) 
 							conn.Write([]byte{byte(IAC), byte(WONT), byte(TelnetOp(c))})
 						}
 					} else {
+						//w.Write(b[p:])
+						//break
 						// FIXME
 						w.Write([]byte{c})
-						//os.Stdout.Write([]byte{c})
-						//fmt.Println(string(c))
 					}
 				}
 

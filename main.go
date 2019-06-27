@@ -16,10 +16,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const Version = "0.0.2"
+const Version = "0.0.3"
 
 var (
 	configfile = kingpin.Arg("configfile", "config file path").Required().String()
+	interval   = kingpin.Flag("interval", "Run interval").Short('i').Duration()
 )
 
 type RootConfig struct {
@@ -42,9 +43,9 @@ func CheckResult(host Host, result string) error {
 	basedir := filepath.Join("carbonara-log", host.Hostname)
 	nowf := time.Now().Format("20060102030405")
 
-	os.MkdirAll(basedir, 0755)
+	c := ""
 
-	fmt.Println(host.Hostname, "done", nowf, len(result), "chars")
+	os.MkdirAll(basedir, 0755)
 
 	if _, err := os.Stat(filepath.Join(basedir, "_")); err != nil {
 		// file not exists
@@ -63,6 +64,8 @@ func CheckResult(host Host, result string) error {
 		text, _ := difflib.GetUnifiedDiffString(diff)
 
 		if len(text) > 0 {
+			c = "*"
+
 			if len(host.WebhookUrl) > 0 {
 				SendWebhook(host.WebhookUrl, "```"+text+"```")
 			}
@@ -72,6 +75,8 @@ func CheckResult(host Host, result string) error {
 		}
 
 	}
+
+	fmt.Println(host.Hostname, c, "done", nowf, len(result), "chars")
 
 	return nil
 }
@@ -110,20 +115,7 @@ func FetchHost(host Host) int {
 	return 0
 }
 
-func Run() int {
-	cbuf, err := ioutil.ReadFile(*configfile)
-	if err != nil {
-		fmt.Println(err)
-		return 1
-	}
-
-	var rc RootConfig
-	err = yaml.Unmarshal(cbuf, &rc)
-	if err != nil {
-		fmt.Println(err)
-		return 1
-	}
-
+func FetchAll(rc *RootConfig) int {
 	ch := make(chan bool, len(rc.Hosts))
 	done := 0
 
@@ -141,6 +133,36 @@ func Run() int {
 			done++
 			if done == len(rc.Hosts) {
 				return 0
+			}
+		}
+	}
+
+	return 0
+}
+
+func Run() int {
+	cbuf, err := ioutil.ReadFile(*configfile)
+	if err != nil {
+		fmt.Println(err)
+		return 1
+	}
+
+	var rc RootConfig
+	err = yaml.Unmarshal(cbuf, &rc)
+	if err != nil {
+		fmt.Println(err)
+		return 1
+	}
+
+	FetchAll(&rc)
+
+	if *interval > 0 {
+		t := time.NewTicker(*interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-t.C:
+				FetchAll(&rc)
 			}
 		}
 	}
