@@ -154,6 +154,15 @@ func Run() int {
 		return 1
 	}
 
+	hntable := map[string]bool{}
+	for _, host := range rc.Hosts {
+		if _, ok := hntable[host.Hostname]; ok {
+			fmt.Printf("Error: hostname '%s' is duplicated\n", host.Hostname)
+			return 1
+		}
+		hntable[host.Hostname] = true
+	}
+
 	FetchAll(&rc)
 
 	if *interval > 0 {
