@@ -101,6 +101,7 @@ func FetchHost(host Host) int {
 			fmt.Println(host.Hostname, err)
 			return 1
 		}
+		defer conn.Close()
 
 		ShellModeRun(&host, cb, conn)
 
