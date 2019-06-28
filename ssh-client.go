@@ -44,6 +44,7 @@ func SSHClient(h *Host) (string, error) {
 	if err != nil {
 		return b, fmt.Errorf("Failed to dial: %s", err)
 	}
+	defer client.Conn.Close()
 
 	if h.Shell {
 		session, err := client.NewSession()
