@@ -19,6 +19,7 @@ type Host struct {
 	PostBeforeWait int      `yaml:"post_before_wait"`
 	SSH            bool     `yaml:"ssh"`
 	SSHPortNum     uint16   `yaml:"ssh_port"`
+	SSHKeyPath     string   `yaml:"ssh_key_path"`
 	Telnet         bool     `yaml:"telnet"`
 	TelnetPortNum  uint16   `yaml:"telnet_port"`
 	WebhookUrl     string   `yaml:"webhook"`

@@ -10,6 +10,21 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+func keyauth(keypath string) (ssh.AuthMethod, error) {
+	key, err := ioutil.ReadFile(keypath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read private key: %v", err)
+	}
+
+	// Create the Signer for this private key.
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse private key: %v", err)
+	}
+
+	return ssh.PublicKeys(signer), nil
+}
+
 func SSHClient(h *Host) (string, error) {
 	var b string
 	w := &bytes.Buffer{}
@@ -18,21 +33,31 @@ func SSHClient(h *Host) (string, error) {
 	config := ssh.Config{}
 	config.SetDefaults()
 
-	clientConfig := &ssh.ClientConfig{
-		Config: config,
-		User:   h.Username,
-		Auth: []ssh.AuthMethod{
-			ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) {
-				var ans []string
-				for _, q := range questions {
-					if q == "Password: " {
-						ans = append(ans, h.Password)
-					}
+	auth := []ssh.AuthMethod{
+		ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) {
+			var ans []string
+			for _, q := range questions {
+				if q == "Password: " {
+					ans = append(ans, h.Password)
 				}
-				return ans, nil
-			}),
-			ssh.Password(h.Password),
-		},
+			}
+			return ans, nil
+		}),
+		ssh.Password(h.Password),
+	}
+
+	if len(h.SSHKeyPath) > 0 {
+		pk, err := keyauth(h.SSHKeyPath)
+		if err != nil {
+			return b, err
+		}
+		auth = append(auth, pk)
+	}
+
+	clientConfig := &ssh.ClientConfig{
+		Config:  config,
+		User:    h.Username,
+		Auth:    auth,
 		Timeout: time.Second * 10,
 
 		// FIXME
