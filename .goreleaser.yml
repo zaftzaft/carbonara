@@ -15,6 +15,10 @@ builds:
     - windows
   goarch:
     - amd64
+    - arm
+  goarm:
+    - 6
+    - 7
 archives:
   -
   #- replacements:
