@@ -1,0 +1,9 @@
+[Unit]
+Description=carbonara
+
+[Service]
+ExecStart=/usr/bin/carbonara /etc/carbonara/carbonara.yml
+Restart=always
+
+[Install]
+WantedBy=default.target
