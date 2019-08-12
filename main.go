@@ -16,15 +16,18 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const Version = "0.0.5"
+const Version = "0.0.6"
 
+var logdir string
 var (
 	configfile = kingpin.Arg("configfile", "config file path").Required().String()
 	interval   = kingpin.Flag("interval", "Run interval").Short('i').Duration()
 )
 
 type RootConfig struct {
-	Hosts []Host `yaml:"hosts"`
+	Logdir   string        `yaml:"logdir"`
+	Interval time.Duration `yaml:"interval"`
+	Hosts    []Host        `yaml:"hosts"`
 }
 
 func UpdateLog(filepath string, data string) error {
@@ -40,12 +43,15 @@ func UpdateLog(filepath string, data string) error {
 }
 
 func CheckResult(host Host, result string) error {
-	basedir := filepath.Join("carbonara-log", host.Hostname)
+	basedir := filepath.Join(logdir, host.Hostname)
 	nowf := time.Now().Format("20060102030405")
 
 	c := ""
 
-	os.MkdirAll(basedir, 0755)
+	err := os.MkdirAll(basedir, 0755)
+	if err != nil {
+		return err
+	}
 
 	if _, err := os.Stat(filepath.Join(basedir, "_")); err != nil {
 		// file not exists
@@ -89,7 +95,11 @@ func FetchHost(host Host) int {
 			return 1
 		}
 
-		CheckResult(host, b)
+		err = CheckResult(host, b)
+		if err != nil {
+			fmt.Println(err)
+			return 1
+		}
 	} else if host.Telnet {
 		w := &bytes.Buffer{}
 		cb := &CtrlBuffer{}
@@ -110,7 +120,11 @@ func FetchHost(host Host) int {
 			return 1
 		}
 
-		CheckResult(host, w.String())
+		err = CheckResult(host, w.String())
+		if err != nil {
+			fmt.Println(err)
+			return 1
+		}
 	}
 
 	return 0
@@ -153,6 +167,16 @@ func Run() int {
 	if err != nil {
 		fmt.Println(err)
 		return 1
+	}
+
+	if len(rc.Logdir) > 0 {
+		logdir = rc.Logdir
+	} else {
+		logdir = "carbonara-log"
+	}
+
+	if rc.Interval > 0 {
+		interval = &rc.Interval
 	}
 
 	hntable := map[string]bool{}
